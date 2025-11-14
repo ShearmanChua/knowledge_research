@@ -22,7 +22,7 @@ from autogen_core.models import (
 )
 from autogen_core.tools import FunctionTool, Tool
 from configs.tools_config import delegate_cfg
-from messaging.messaging_protocols import AgentTask, UserTask, BroadCastMessage
+from messaging.messaging_protocols import AgentTask, UserTask, BroadCastMessage, AgentResponse
 from reflection.base_reflection import BaseReflection
 from tools.communication_tools import set_communication_tools
 from opentelemetry import trace
@@ -135,9 +135,9 @@ class BaseThinkingAgent(RoutedAgent):
         if isinstance(llm_result.content, list) and all(
             isinstance(m, FunctionCall) for m in llm_result.content
         ):
-            self._tool_result = []
-            self._delegate_tool_result = []
             await self.handle_function_calls(llm_result, ctx)
+        else:
+            await self.handle_response(llm_result, ctx)
 
     @message_handler
     async def handle_agent_task(self, message: AgentTask, ctx: MessageContext) -> None:
@@ -219,8 +219,7 @@ class BaseThinkingAgent(RoutedAgent):
         self._chat_history.append(
             AssistantMessage(content=llm_result.content, source=self.id.type)
         )
-
-        delegate_targets = []
+        tool_results = []
         # Process each function call.
         for call in llm_result.content:
             arguments = json.loads(call.arguments)
@@ -228,13 +227,12 @@ class BaseThinkingAgent(RoutedAgent):
             if call.name in self._tools:
                 logger.info("Running tool: %s", call.name)
 
-                # run tool
                 try:
                     tool_result = await self._tools[call.name].run_json(
                         arguments, ctx.cancellation_token
                     )
                     # save tool results
-                    self._tool_result.append(
+                    tool_results.append(
                         FunctionExecutionResult(
                             name=call.name,
                             content=self._tools[call.name].return_value_as_string(
@@ -244,7 +242,7 @@ class BaseThinkingAgent(RoutedAgent):
                         )
                     )
                 except Exception as e:
-                    self._tool_result.append(
+                    tool_results.append(
                         FunctionExecutionResult(
                             name=call.name,
                             content=str(e),
@@ -252,38 +250,23 @@ class BaseThinkingAgent(RoutedAgent):
                             is_error=True,
                         )
                     )
-
-            elif call.name in self._delegate_tools:
-                # run delegate tool
+            elif call.name in self._communication_tools:
                 try:
-                    next_delegate_targets = await self._delegate_tools[
-                        call.name
-                    ].run_json(arguments, ctx.cancellation_token)
-
-                    new_delegate_targets = []
-
-                    for target in next_delegate_targets:
-                        if target[0] in self._agent_topics:
-                            new_delegate_targets.append(target)
-                        else:
-                            new_delegate_targets.append(
-                                (target[0], f"Error:{target[0]} is not a valid agent.")
-                            )
-
-                    delegate_targets += new_delegate_targets
-
-                    # save pseudo delegate tool results
-                    self._delegate_tool_result.append(
+                    tool_result = await self._communication_tools[call.name].run_json(
+                        arguments, ctx.cancellation_token
+                    )
+                    # save tool results
+                    tool_results.append(
                         FunctionExecutionResult(
                             name=call.name,
-                            content=self._delegate_tools[
-                                call.name
-                            ].return_value_as_string(new_delegate_targets),
+                            content=self._communication_tools[call.name].return_value_as_string(
+                                tool_result
+                            ),
                             call_id=call.id,
                         )
                     )
                 except Exception as e:
-                    self._delegate_tool_result.append(
+                    tool_results.append(
                         FunctionExecutionResult(
                             name=call.name,
                             content=str(e),
@@ -313,7 +296,7 @@ class BaseThinkingAgent(RoutedAgent):
                 except Exception:
                     pass
 
-                self._tool_result.append(
+                tool_results.append(
                     FunctionExecutionResult(
                         name=call.name,
                         content=f"NameError: {call.name} is not a valid tool",
@@ -322,52 +305,47 @@ class BaseThinkingAgent(RoutedAgent):
                     )
                 )
 
-        # delegate task to agents if delegate targets exist
-        if len(delegate_targets) > 0:
-            while len(delegate_targets) > 0:
-                target = delegate_targets.pop(0)
-                agent, messages = target
-                if agent in self._agent_topics:
-                    if agent not in self._delegated_agents:
-                        self._delegated_agents.append(agent)
+        # add tool results to chat history
+        self._chat_history.append(
+            FunctionExecutionResultMessage(content=tool_result)
+        )
 
-                        await self.publish_message(
-                            AgentTask(
-                                sender_topic_type=self.id.type,
-                                context=messages,
-                            ),
-                            topic_id=TopicId(agent, source=self.id.key),
-                        )
-                    else:
-                        self._delegation_queue.append(target)
+        available_tools = (
+            [tool.schema for tool in self._tools.values()]
+            + [tool.schema for tool in self._communication_tools]
+            if self._communication_tools
+            else [tool.schema for tool in self._tools.values()]
+        )
+
+        # analyse agent task
+        llm_result = await self._model_client.create(
+            messages=[self._system_message] + self._chat_history,
+            tools=available_tools,
+            cancellation_token=ctx.cancellation_token,
+        )
+
+        if isinstance(llm_result.content, list) and all(
+            isinstance(m, FunctionCall) for m in llm_result.content
+        ):
+            await self.handle_function_calls(llm_result, ctx)
+
+        # if LLM response is not a list of function calls, and no agent delegation
+        # is required send it back to sender
         else:
-            # add tool results to chat history
-            self._chat_history.append(
-                FunctionExecutionResultMessage(content=self._tool_result)
-            )
+            await self.handle_response(llm_result, ctx)
 
-            available_tools = (
-                [tool.schema for tool in self._tools.values()]
-                + [tool.schema for tool in self._communication_tools]
-                if self._communication_tools
-                else [tool.schema for tool in self._tools.values()]
-            )
-
-            # analyse agent task
-            llm_result = await self._model_client.create(
-                messages=[self._system_message] + self._chat_history,
-                tools=available_tools,
-                cancellation_token=ctx.cancellation_token,
-            )
-
-            if isinstance(llm_result.content, list) and all(
-                isinstance(m, FunctionCall) for m in llm_result.content
-            ):
-                self._tool_result = []
-                self._delegate_tool_result = []
-                await self.handle_function_calls(llm_result, ctx)
-
-            # if LLM response is not a list of function calls, and no agent delegation
-            # is required send it back to sender
-            else:
-                await self.transfer_control(llm_result, ctx)
+    async def handle_response(
+        self, llm_result: CreateResult, ctx: MessageContext
+    ) -> None:
+        self._chat_history.append(AssistantMessage(content=llm_result.content))
+        await self.publish_message(
+            AgentResponse(
+                reply_to_topic_type=self.id.type,
+                context=[
+                    AssistantMessage(
+                        content=llm_result.content, source=self.id.type
+                    )
+                ],
+            ),
+            topic_id=TopicId(self._sender_agent_topic, source=self.id.key),
+        )
