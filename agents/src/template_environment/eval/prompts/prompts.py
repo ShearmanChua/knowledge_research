@@ -43,4 +43,3 @@ STEPWISE_EVALUATION_PROMPT = (
     "the current step.\n"
     "Reason about the current step first before providing the scores.\n\n"
 )
-

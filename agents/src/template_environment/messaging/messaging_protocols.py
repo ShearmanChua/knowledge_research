@@ -15,12 +15,24 @@ class UserTask(BaseModel):
 
     sender_topic_type: str
     context: List[LLMMessage]
-    broadcast: bool
 
 
 class AgentTask(BaseModel):
     """
     A message sent from one agent to another agent.
+
+    sender_topic_type: The topic type of the agent that should receive this message.
+    context: A list of LLMMessage objects that contain the conversation history leading
+    up to this message.
+    """
+
+    sender_topic_type: str
+    context: List[LLMMessage]
+
+
+class BroadCastMessage(BaseModel):
+    """
+    A message sent from one agent to all agents.
 
     sender_topic_type: The topic type of the agent that should receive this message.
     context: A list of LLMMessage objects that contain the conversation history leading

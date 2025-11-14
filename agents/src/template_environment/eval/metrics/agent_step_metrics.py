@@ -4,12 +4,11 @@ import os
 import requests
 
 from prompts.prompts import STEPWISE_EVALUATION_PROMPT
-from utils.llm_utils import (
-    extract_score_confidence
-)
+from utils.llm_utils import extract_score_confidence
 from utils.logger import get_logger
 
 logger = get_logger()
+
 
 def stepwise_agent_eval(step: dict, available_tools: str):
     class StepwiseScore(BaseModel):
@@ -25,12 +24,9 @@ def stepwise_agent_eval(step: dict, available_tools: str):
     api_key = os.environ.get("MODEL_API_KEY")
     model = os.environ.get("MODEL_NAME")
     model_endpoint = os.environ.get("MODEL_ENDPOINT") + "/chat/completions"
-    
+
     # Headers
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     payload = {
         "model": model,
@@ -41,26 +37,26 @@ def stepwise_agent_eval(step: dict, available_tools: str):
             "json_schema": {
                 "name": "stepwise_score_schema",
                 "schema": schema,
-                "strict": True
+                "strict": True,
             },
         },
     }
 
     prompt = STEPWISE_EVALUATION_PROMPT.format(
-        strategy = step["strategy"],
-        system_prompt = step["system_prompt"],
-        available_tools = available_tools,
-        user_prompt = step["user_prompt"],
-        previous_responses = step["previous_responses"],
-        current_response = step["current_response"]
+        strategy=step["strategy"],
+        system_prompt=step["system_prompt"],
+        available_tools=available_tools,
+        user_prompt=step["user_prompt"],
+        previous_responses=step["previous_responses"],
+        current_response=step["current_response"],
     )
 
     try:
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
+        messages = [{"role": "user", "content": prompt}]
         payload["messages"] = messages
-        response = requests.post(model_endpoint, headers=headers, data=json.dumps(payload))
+        response = requests.post(
+            model_endpoint, headers=headers, data=json.dumps(payload)
+        )
         response_dict = response.json()
         response = json.loads(response_dict["choices"][0]["message"]["content"])
 
@@ -72,10 +68,12 @@ def stepwise_agent_eval(step: dict, available_tools: str):
             if not isinstance(score_value, str):
                 new_response[score] = {
                     "score": score_value,
-                    "confidence": logprobs.get(score)
+                    "confidence": logprobs.get(score),
                 }
         response = new_response
-        response["contextual_coherence"] = None if not step["previous_responses"] else response["contextual_coherence"]
+        response["contextual_coherence"] = (
+            None if not step["previous_responses"] else response["contextual_coherence"]
+        )
         if step["strategy"].split(" -> ")[-1] == "response":
             response["invoked_tool_correctness"] = None
             response["tool_result_correctness"] = None
@@ -90,8 +88,15 @@ def stepwise_agent_eval(step: dict, available_tools: str):
 
     return response
 
-def compute_stepwise_metrics(agent_trajectories_dict, min_score=1, max_score=5, low_quality_cutoff=2.5,
-                   high_quality_cutoff=3.5, low_conf_flag=0.8):
+
+def compute_stepwise_metrics(
+    agent_trajectories_dict,
+    min_score=1,
+    max_score=5,
+    low_quality_cutoff=2.5,
+    high_quality_cutoff=3.5,
+    low_conf_flag=0.8,
+):
     """
     Mutates agent_trajectories_dict in place:
       - Adds step['step_score_aggregated'] and step['step_quality']
@@ -127,7 +132,7 @@ def compute_stepwise_metrics(agent_trajectories_dict, min_score=1, max_score=5, 
                         continue
                     score = result.get("score")
                     conf = result.get("confidence")
-                    
+
                     if score is None or conf is None:
                         continue
 
@@ -144,7 +149,11 @@ def compute_stepwise_metrics(agent_trajectories_dict, min_score=1, max_score=5, 
                         low_flag = True
 
                 # Step aggregated score (simple mean of calibrated scores)
-                agg = (sum(calibrated_scores) / len(calibrated_scores)) if calibrated_scores else None
+                agg = (
+                    (sum(calibrated_scores) / len(calibrated_scores))
+                    if calibrated_scores
+                    else None
+                )
                 step["step_score_aggregated"] = agg
 
                 # Step quality classification
@@ -160,7 +169,9 @@ def compute_stepwise_metrics(agent_trajectories_dict, min_score=1, max_score=5, 
 
         # Per-agent stepwise metrics: average calibrated score per metric
         stepwise_metrics = {
-            m: (metric_sum[m] / metric_count[m]) for m in metric_sum.keys() if metric_count[m] > 0
+            m: (metric_sum[m] / metric_count[m])
+            for m in metric_sum.keys()
+            if metric_count[m] > 0
         }
         agent_trajectories_dict[agent_name]["stepwise_metrics"] = stepwise_metrics
 

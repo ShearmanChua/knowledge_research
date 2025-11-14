@@ -36,9 +36,7 @@ def parse_chat_n(chat, n_previous=1):
         elif role == "assistant":
             # if assistant message is a tool call
             if msg.get("message.tool_calls") or msg.get("tool_calls"):
-                tool_calls = msg.get("message.tool_calls") or msg.get(
-                    "tool_calls"
-                )
+                tool_calls = msg.get("message.tool_calls") or msg.get("tool_calls")
                 # Format tool calls
                 tool_calls_strs = [
                     f"Tool Call: {tool_call.get('tool_call.function.name')}\n"
@@ -49,10 +47,7 @@ def parse_chat_n(chat, n_previous=1):
                 tool_calls_str = "\n\n".join(tool_calls_strs)
 
                 strategy.extend(
-                    [
-                        tool_call["tool_call.function.name"]
-                        for tool_call in tool_calls
-                    ]
+                    [tool_call["tool_call.function.name"] for tool_call in tool_calls]
                 )
 
                 tool_results = []
@@ -72,7 +67,6 @@ def parse_chat_n(chat, n_previous=1):
                         for result in tool_results
                     ]
 
-
                     tool_results_str = "\n\n".join(tool_results_str)
                     current_response = (
                         f"Tool_calls:\n\n{tool_calls_str}\n\n"
@@ -85,9 +79,7 @@ def parse_chat_n(chat, n_previous=1):
 
                 previous_response_str = "" if previous_responses else None
 
-                for idx, response in enumerate(
-                    previous_responses[-n_previous:]
-                ):
+                for idx, response in enumerate(previous_responses[-n_previous:]):
                     res_num = f"---------- Previous response {-(-len(previous_responses[-n_previous:]) + idx)} ----------\n\n"
                     previous_response_str += res_num + response + "\n\n"
 
@@ -108,17 +100,13 @@ def parse_chat_n(chat, n_previous=1):
 
             else:
                 # Normal assistant message
-                assistant_response = msg.get("message.content") or msg.get(
-                    "content"
-                )
+                assistant_response = msg.get("message.content") or msg.get("content")
 
                 strategy.append("agent response")
 
                 previous_response_str = "" if previous_responses else None
 
-                for idx, response in enumerate(
-                    previous_responses[-n_previous:]
-                ):
+                for idx, response in enumerate(previous_responses[-n_previous:]):
                     res_num = f"---------- Previous response {-(-len(previous_responses[-n_previous:]) + idx)} ----------\n\n"
                     previous_response_str += res_num + response + "\n\n"
 

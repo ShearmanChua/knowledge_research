@@ -143,6 +143,7 @@ def score_tool_quality(row):
 
     return pd.Series([score, reason])
 
+
 def score_tool_quality(row):
     class ToolScore(BaseModel):
         reason: str

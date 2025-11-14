@@ -22,7 +22,8 @@ from autogen_core.models import (
 )
 from autogen_core.tools import FunctionTool, Tool
 from configs.tools_config import delegate_cfg
-from messaging.messaging_protocols import AgentTask, UserTask
+from messaging.messaging_protocols import AgentTask, UserTask, BroadCastMessage
+from reflection.base_reflection import BaseReflection
 from tools.communication_tools import set_communication_tools
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -38,7 +39,7 @@ class BaseThinkingAgent(RoutedAgent):
     def __init__(
         self,
         description: str,
-        system_message: SystemMessage,
+        system_message: str,
         model_client: ChatCompletionClient,
         agent_topics: List[str] = [],
         broadcast_topic: str = None,
@@ -50,12 +51,26 @@ class BaseThinkingAgent(RoutedAgent):
         self._system_message = SystemMessage(content=system_message)
         self._model_client = model_client
         self._tools = dict([(tool.name, tool) for tool in tools])
-        self._runtime_execution_graph = self._runtime.execution_graph if hasattr(self._runtime, "execution_graph") else None
+        self._runtime_execution_graph = (
+            self._runtime.execution_graph
+            if hasattr(self._runtime, "execution_graph")
+            else None
+        )
         self._communication_tools = communication_tools
         self._agent_topics = agent_topics
         self._broadcast_topic = broadcast_topic
         self._chat_history: List[LLMMessage] = []
         self._sender_agent_topic = ""
+        self._reflection = BaseReflection(system_message=system_message)
+
+    @message_handler
+    async def handle_broadcast_message(
+        self, message: BroadCastMessage, ctx: MessageContext
+    ) -> None:
+        if ctx.sender != self.id:
+            self._system_message.content += (
+                f"\n\nCurrent task context: {message.context[0].content}"
+            )
 
     @message_handler
     async def handle_user_task(self, message: UserTask, ctx: MessageContext) -> None:
@@ -75,54 +90,54 @@ class BaseThinkingAgent(RoutedAgent):
         # designate message soure topic type
         self._sender_agent_topic = message.sender_topic_type
 
-
         if not isinstance(self._communication_tools, dict):
-            self._communication_tools = await set_communication_tools(self._agent_topics, self._communication_tools, self._runtime)
+            self._communication_tools = await set_communication_tools(
+                self._agent_topics, self._communication_tools, self._runtime
+            )
 
-        if self._broadcast_topic and not message.broadcast:
-            broadcast_message = message.model_copy()
-            broadcast_message.broadcast = True
+        if self._broadcast_topic:
+
+            broadcast_message = BroadCastMessage(
+                sender_topic_type=self.id.type, context=message.context
+            )
             # broadcast the message to all agents
-            logger.info("Broadcasting message to all agents")
+            logger.info("Broadcasting message")
             await self.publish_message(
                 broadcast_message,
                 topic_id=TopicId(self._broadcast_topic, source=self.id.key),
             )
-        if not message.broadcast:
-            self._chat_history.extend(message.context)
-            available_tools = (
-                [tool.schema for tool in self._tools.values()] + [tool.schema for tool in self._communication_tools]
-                if self._communication_tools
-                else [tool.schema for tool in self._tools.values()]
-            )
-            current_span = get_current_span()
-            current_span.set_attribute("available tools", str(available_tools))
 
-            # Run user task
-            llm_result = await self._model_client.create(
-                messages=[self._system_message] + self._chat_history,
-                tools=available_tools,
-                cancellation_token=ctx.cancellation_token,
-            )
+        self._chat_history.extend(message.context)
+        think_context = await self._reflection.think(self._chat_history,
+                                                     self._model_client,
+                                                     self.id.type)
+        self._chat_history.extend(think_context)
+        available_tools = (
+            [tool.schema for tool in self._tools.values()]
+            + [tool.schema for tool in self._communication_tools]
+            if self._communication_tools
+            else [tool.schema for tool in self._tools.values()]
+        )
+        current_span = get_current_span()
+        current_span.set_attribute("available tools", str(available_tools))
 
-            logger.info("LLM result: %s", llm_result)
+        # Run user task
+        llm_result = await self._model_client.create(
+            messages=[self._system_message] + self._chat_history,
+            tools=available_tools,
+            cancellation_token=ctx.cancellation_token,
+        )
 
-            # if the LLM returns a list of function calls
-            # handle function calls
-            if isinstance(llm_result.content, list) and all(
-                isinstance(m, FunctionCall) for m in llm_result.content
-            ):
-                self._tool_result = []
-                self._delegate_tool_result = []
-                await self.handle_function_calls(llm_result, ctx)
+        logger.info("LLM result: %s", llm_result)
 
-            # if LLM response is not a list of function calls, send it back to user
-            elif self._runtime._message_queue._unfinished_tasks < 2:
-                await self.transfer_control(llm_result, ctx)
-        elif ctx.sender != self.id:
-            self._system_message.content += (
-                f"\n\nCurrent task context: {message.context[0].content}"
-            )
+        # if the LLM returns a list of function calls
+        # handle function calls
+        if isinstance(llm_result.content, list) and all(
+            isinstance(m, FunctionCall) for m in llm_result.content
+        ):
+            self._tool_result = []
+            self._delegate_tool_result = []
+            await self.handle_function_calls(llm_result, ctx)
 
     @message_handler
     async def handle_agent_task(self, message: AgentTask, ctx: MessageContext) -> None:
@@ -151,13 +166,16 @@ class BaseThinkingAgent(RoutedAgent):
         self._sender_agent_topic = message.sender_topic_type
 
         if not isinstance(self._communication_tools, dict):
-            self._communication_tools = await set_communication_tools(self._agent_topics, self._communication_tools, self._runtime)
+            self._communication_tools = await set_communication_tools(
+                self._agent_topics, self._communication_tools, self._runtime
+            )
 
         available_tools = (
-                [tool.schema for tool in self._tools.values()] + [tool.schema for tool in self._communication_tools]
-                if self._communication_tools
-                else [tool.schema for tool in self._tools.values()]
-            )
+            [tool.schema for tool in self._tools.values()]
+            + [tool.schema for tool in self._communication_tools]
+            if self._communication_tools
+            else [tool.schema for tool in self._tools.values()]
+        )
         current_span = get_current_span()
         current_span.set_attribute("available tools", str(available_tools))
 
@@ -329,7 +347,8 @@ class BaseThinkingAgent(RoutedAgent):
             )
 
             available_tools = (
-                [tool.schema for tool in self._tools.values()] + [tool.schema for tool in self._communication_tools]
+                [tool.schema for tool in self._tools.values()]
+                + [tool.schema for tool in self._communication_tools]
                 if self._communication_tools
                 else [tool.schema for tool in self._tools.values()]
             )
@@ -352,5 +371,3 @@ class BaseThinkingAgent(RoutedAgent):
             # is required send it back to sender
             else:
                 await self.transfer_control(llm_result, ctx)
-
-

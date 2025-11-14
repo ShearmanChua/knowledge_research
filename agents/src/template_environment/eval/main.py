@@ -69,6 +69,7 @@ async def create_evaluation(
         "evaluation_status": db_eval.status,
     }
 
+
 @app.get(
     "/evaluations",
     response_model=List[EvaluationResponse],
@@ -90,39 +91,33 @@ async def create_evaluation(
                                     "trace_id": "agent_trace_456",
                                     "tool_metrics": {
                                         "tool_usage": 5,
-                                        "tool_success_rate": 0.8
+                                        "tool_success_rate": 0.8,
                                     },
-                                    "stepwise_metrics": {
-                                        "avg_step_score": 0.75
-                                    }
+                                    "stepwise_metrics": {"avg_step_score": 0.75},
                                 }
-                            ]
+                            ],
                         }
                     ]
                 }
-            }
+            },
         },
-        500: {"model": ErrorResponse, "description": "Internal server error"}
+        500: {"model": ErrorResponse, "description": "Internal server error"},
     },
     tags=["Evaluations"],
-    summary="Get all evaluations"
+    summary="Get all evaluations",
 )
 async def get_evaluations(db: Session = Depends(get_db)):
     """
     Retrieve all evaluations with their associated agents and metrics.
-    
+
     Returns a list of evaluations ordered by creation date (most recent first).
     Each evaluation includes:
     - Basic evaluation information (ID, trace ID, status, creation date)
     - List of associated agents with their metrics
     - Tool usage and step-wise performance metrics for each agent
     """
-    evaluations = (
-        db.query(Evaluation)
-        .order_by(Evaluation.created_at.desc())
-        .all()
-    )
-    
+    evaluations = db.query(Evaluation).order_by(Evaluation.created_at.desc()).all()
+
     result = []
     for eval in evaluations:
         eval_data = {
@@ -130,22 +125,23 @@ async def get_evaluations(db: Session = Depends(get_db)):
             "trace_id": eval.trace_id,
             "created_at": eval.created_at,
             "status": eval.status,
-            "agents": []
+            "agents": [],
         }
-        
+
         for agent in eval.agents:
             agent_data = {
                 "id": agent.id,
                 "name": agent.name,
                 "trace_id": agent.trace_id,
                 "tool_metrics": agent.tool_metrics,
-                "stepwise_metrics": agent.stepwise_metrics
+                "stepwise_metrics": agent.stepwise_metrics,
             }
             eval_data["agents"].append(agent_data)
-            
+
         result.append(eval_data)
-    
+
     return result
+
 
 @app.get(
     "/evaluations/{evaluation_id}",
@@ -167,65 +163,59 @@ async def get_evaluations(db: Session = Depends(get_db)):
                                 "trace_id": "agent_trace_456",
                                 "tool_metrics": {
                                     "tool_usage": 5,
-                                    "tool_success_rate": 0.8
+                                    "tool_success_rate": 0.8,
                                 },
-                                "stepwise_metrics": {
-                                    "avg_step_score": 0.75
-                                }
+                                "stepwise_metrics": {"avg_step_score": 0.75},
                             }
-                        ]
+                        ],
                     }
                 }
-            }
+            },
         },
         404: {"model": ErrorResponse, "description": "Evaluation not found"},
-        500: {"model": ErrorResponse, "description": "Internal server error"}
+        500: {"model": ErrorResponse, "description": "Internal server error"},
     },
     tags=["Evaluations"],
-    summary="Get evaluation details"
+    summary="Get evaluation details",
 )
 async def get_evaluation_details(evaluation_id: int, db: Session = Depends(get_db)):
     """
     Get detailed information about a specific evaluation.
-    
+
     Returns comprehensive information about an evaluation including:
     - Evaluation metadata (ID, trace ID, status, creation date)
     - All associated agents and their performance metrics
     - Tool usage statistics and step-wise evaluation scores
-    
+
     Args:
         evaluation_id: The unique identifier of the evaluation to retrieve
-    
+
     Raises:
         HTTPException: 404 if the evaluation is not found
     """
-    evaluation = (
-        db.query(Evaluation)
-        .filter(Evaluation.id == evaluation_id)
-        .first()
-    )
-    
+    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
-    
+
     result = {
         "id": evaluation.id,
         "trace_id": evaluation.trace_id,
         "created_at": evaluation.created_at,
         "status": evaluation.status,
-        "agents": []
+        "agents": [],
     }
-    
+
     for agent in evaluation.agents:
         agent_data = {
             "id": agent.id,
             "name": agent.name,
             "trace_id": agent.trace_id,
             "tool_metrics": agent.tool_metrics,
-            "stepwise_metrics": agent.stepwise_metrics
+            "stepwise_metrics": agent.stepwise_metrics,
         }
         result["agents"].append(agent_data)
-    
+
     return result
 
 
@@ -248,9 +238,7 @@ async def get_evaluation_details(evaluation_id: int, db: Session = Depends(get_d
                                 "invocation_msg": "Please help me find information about Python",
                                 "invocated_by": "user",
                                 "available_tools": "search, retrieve, summarize",
-                                "chat_history": [
-                                    {"role": "user", "content": "Hello"}
-                                ],
+                                "chat_history": [{"role": "user", "content": "Hello"}],
                                 "agent_steps": [
                                     {
                                         "id": 1,
@@ -263,59 +251,53 @@ async def get_evaluation_details(evaluation_id: int, db: Session = Depends(get_d
                                         "chat_index": 1,
                                         "step_score": {
                                             "relevance": 0.8,
-                                            "accuracy": 0.9
+                                            "accuracy": 0.9,
                                         },
                                         "step_score_aggregated": 0.85,
-                                        "step_quality": "good"
+                                        "step_quality": "good",
                                     }
-                                ]
+                                ],
                             }
-                        ]
+                        ],
                     }
                 }
-            }
+            },
         },
         404: {"model": ErrorResponse, "description": "Evaluation or agent not found"},
-        500: {"model": ErrorResponse, "description": "Internal server error"}
+        500: {"model": ErrorResponse, "description": "Internal server error"},
     },
     tags=["Agent Traces"],
-    summary="Get agent traces by name and evaluation ID"
+    summary="Get agent traces by name and evaluation ID",
 )
 async def get_agent_traces(
-    evaluation_id: int, 
-    agent_name: str, 
-    db: Session = Depends(get_db)
+    evaluation_id: int, agent_name: str, db: Session = Depends(get_db)
 ):
     """
     Get all agent traces for a specific agent by agent name and evaluation_id.
-    
+
     This endpoint retrieves comprehensive trace information for a specific agent
     within an evaluation, including:
     - All trace invocations for the agent
     - Detailed step-by-step execution information
     - Performance metrics and quality scores for each step
     - Chat history and tool usage information
-    
+
     Args:
         evaluation_id: The unique identifier of the evaluation
         agent_name: The name of the agent to retrieve traces for
-    
+
     Returns:
         AgentTracesResponse: Complete trace information including all steps and metrics
-    
+
     Raises:
         HTTPException: 404 if the evaluation or agent is not found
     """
     # First, verify the evaluation exists
-    evaluation = (
-        db.query(Evaluation)
-        .filter(Evaluation.id == evaluation_id)
-        .first()
-    )
-    
+    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
-    
+
     # Find the agent by name within this evaluation
     agent = (
         db.query(Agent)
@@ -323,27 +305,23 @@ async def get_agent_traces(
         .filter(Agent.name == agent_name)
         .first()
     )
-    
+
     if not agent:
         raise HTTPException(
-            status_code=404, 
-            detail=f"Agent '{agent_name}' not found in evaluation {evaluation_id}"
+            status_code=404,
+            detail=f"Agent '{agent_name}' not found in evaluation {evaluation_id}",
         )
-    
+
     # Get all agent traces for this agent
-    agent_traces = (
-        db.query(AgentTrace)
-        .filter(AgentTrace.agent_id == agent.id)
-        .all()
-    )
-    
+    agent_traces = db.query(AgentTrace).filter(AgentTrace.agent_id == agent.id).all()
+
     result = {
         "evaluation_id": evaluation_id,
         "agent_name": agent_name,
         "agent_id": agent.id,
-        "traces": []
+        "traces": [],
     }
-    
+
     for trace in agent_traces:
         trace_data = {
             "invocation_id": trace.invocation_id,
@@ -352,9 +330,9 @@ async def get_agent_traces(
             "invocated_by": trace.invocated_by,
             "available_tools": trace.available_tools,
             "chat_history": trace.chat_history,
-            "agent_steps": []
+            "agent_steps": [],
         }
-        
+
         # Include agent steps for each trace
         for step in trace.agent_steps:
             step_data = {
@@ -368,13 +346,14 @@ async def get_agent_traces(
                 "chat_index": step.chat_index,
                 "step_score": step.step_score,
                 "step_score_aggregated": step.step_score_aggregated,
-                "step_quality": step.step_quality
+                "step_quality": step.step_quality,
             }
             trace_data["agent_steps"].append(step_data)
-        
+
         result["traces"].append(trace_data)
-    
+
     return result
+
 
 if __name__ == "__main__":
 

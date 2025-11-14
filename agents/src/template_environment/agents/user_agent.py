@@ -12,9 +12,7 @@ logger = get_logger()
 
 
 class UserAgent(RoutedAgent):
-    def __init__(
-        self, description: str, user_topic: str, agent_topic: str
-    ) -> None:
+    def __init__(self, description: str, user_topic: str, agent_topic: str) -> None:
         super().__init__(description)
         self._user_topic = user_topic
         self._agent_topic = agent_topic

@@ -1,9 +1,7 @@
 import asyncio
 from typing import List, Tuple, Union
 import json
-from autogen_core import (
-    AgentId
-)
+from autogen_core import AgentId
 from autogen_core.models import UserMessage
 from autogen_core.tools import FunctionTool
 import inspect
@@ -14,6 +12,7 @@ from tools.tool_tracing_utils import trace_span_info
 from utils.logger import get_logger
 
 logger = get_logger()
+
 
 class DelegationTask(BaseModel):
     agent: str = Field(..., description="The agent to delegate the task to.")
@@ -46,6 +45,7 @@ async def delegate_tasks(
 
     return parsed_delegation_tasks
 
+
 async def set_communication_tools(agent_topics, communication_tools, runtime):
     assert communication_tools, "No communication tools found"
 
@@ -56,10 +56,11 @@ async def set_communication_tools(agent_topics, communication_tools, runtime):
 
     for tool in communication_tools:
         tool.description = tool.description.format(
-            agents= "- " + "\n\n- ".join(agents_descriptions)
+            agents="- " + "\n\n- ".join(agents_descriptions)
         )
-    
+
     return dict([(tool.name, tool) for tool in communication_tools])
+
 
 async def get_agent_description(topic_id, runtime):
     metadata = await runtime.agent_metadata(AgentId(topic_id, "default"))

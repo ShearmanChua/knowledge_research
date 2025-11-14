@@ -7,7 +7,7 @@ from metrics.tool_metrics import (
     aggregate_tool_stats,
     finalize_tool_stats,
     compute_tool_entropy,
-    score_tool_quality
+    score_tool_quality,
 )
 from metrics.agent_step_metrics import (
     stepwise_agent_eval,
@@ -42,8 +42,8 @@ class EvaluationService:
         try:
             # Get evaluation results - now grouped by agent_type
             self.evaluate_trace(trace_df)
-            
-            result = self.agent_trajectories_dict  
+
+            result = self.agent_trajectories_dict
 
             db_eval = (
                 db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
@@ -108,11 +108,13 @@ class EvaluationService:
 
             # Update status to completed
             db_eval.status = "COMPLETED"
-            db.flush()   # assign all FKs
+            db.flush()  # assign all FKs
             db.commit()
         except Exception as e:
-            db.rollback()   # rollback FIRST
-            db_eval = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+            db.rollback()  # rollback FIRST
+            db_eval = (
+                db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+            )
             if db_eval:
                 db_eval.status = "FAILED"
                 db.commit()
@@ -125,7 +127,7 @@ class EvaluationService:
         self.calculate_tool_usefulness(df)
         self.evaluate_agent_steps()
 
-        return 
+        return
 
     def curate_agent_trajectories_dict(self, df: pd.DataFrame):
         agent_spans = df[df["span_kind"] == "AGENT"]
@@ -321,9 +323,7 @@ class EvaluationService:
 
     def calculate_tool_usefulness(self, df: pd.DataFrame):
         tqdm.pandas()
-        tools_df = df[
-            (df["span_kind"] == "TOOL")
-        ].sort_values("start_time")
+        tools_df = df[(df["span_kind"] == "TOOL")].sort_values("start_time")
         tools_df[["tool.quality.score", "tool.quality.reason"]] = (
             tools_df.progress_apply(score_tool_quality, axis=1)
         )
@@ -396,7 +396,7 @@ class EvaluationService:
                     available_tools = trace.get("available_tools", "")
                     for step in trace["agent_steps"]:
                         step["step_score"] = stepwise_agent_eval(step, available_tools)
-        
+
         agent_trajectories_dict = compute_stepwise_metrics(self.agent_trajectories_dict)
         self.agent_trajectories_dict = agent_trajectories_dict
 

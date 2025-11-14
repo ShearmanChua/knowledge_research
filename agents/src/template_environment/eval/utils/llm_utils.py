@@ -1,13 +1,15 @@
 import re
 import math
 
-def logprob_to_confidence(logprob, base='e'):
-    if base == 'e':  # natural log
+
+def logprob_to_confidence(logprob, base="e"):
+    if base == "e":  # natural log
         return math.exp(logprob)
-    elif base == '10':  # base-10 log
-        return 10 ** logprob
+    elif base == "10":  # base-10 log
+        return 10**logprob
     else:
         raise ValueError("Unsupported log base. Use 'e' or '10'.")
+
 
 def extract_score_confidence(response_dict, fields):
     """
@@ -85,7 +87,7 @@ def extract_score_confidence(response_dict, fields):
                             "value": value,
                             "logprob": avg_logprob,
                             "tokens": num_tokens,
-                            "token_logprobs": num_logprobs
+                            "token_logprobs": num_logprobs,
                         }
                     except ValueError:
                         pass
@@ -97,6 +99,8 @@ def extract_score_confidence(response_dict, fields):
         if field not in scores_with_logprobs:
             field_confidence[field] = 0.0
         else:
-            field_confidence[field] = logprob_to_confidence(scores_with_logprobs[field]["logprob"])
+            field_confidence[field] = logprob_to_confidence(
+                scores_with_logprobs[field]["logprob"]
+            )
 
     return field_confidence

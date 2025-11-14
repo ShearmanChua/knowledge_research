@@ -107,9 +107,9 @@ SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://user:password@postgres:5432/pos
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True,       # helps keep connections alive
-    pool_size=10,             # optional: adjust for concurrency
-    max_overflow=20,          # optional: allow extra connections
+    pool_pre_ping=True,  # helps keep connections alive
+    pool_size=10,  # optional: adjust for concurrency
+    max_overflow=20,  # optional: allow extra connections
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

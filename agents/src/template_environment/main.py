@@ -46,10 +46,10 @@ async def main():
     for agent in agents_config.autonomous_agents_cfgs:
         agent_name = agent["name"]
         del agent["name"]
-        agents[agent_name] = await BaseAgent.register(
+        agents[agent_name] = await BaseThinkingAgent.register(
             runtime,
             type=agent_name,
-            factory=lambda agent_cfgs=agent: BaseAgent(**agent_cfgs),
+            factory=lambda agent_cfgs=agent: BaseThinkingAgent(**agent_cfgs),
         )
 
     logger.info("Instantiating message queue")
