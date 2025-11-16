@@ -7,6 +7,7 @@ ENV PYTHONUNBUFFERED 1
 
 RUN apt update && apt upgrade -y 
 RUN apt-get update && apt-get upgrade -y
+RUN apt install build-essential cmake perl pkg-config libclang-dev musl-tools git -y
 
 RUN pip install --upgrade pip
 
@@ -15,5 +16,7 @@ RUN pip install --upgrade pip
 ADD build/requirements.txt .
 # RUN pip uninstall -y -r requirements.txt --no-cache-dir
 RUN pip install -r requirements.txt --no-cache-dir
+
+RUN playwright install
 
 WORKDIR /src

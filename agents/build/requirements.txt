@@ -20,3 +20,8 @@ python-socketio==5.13.0
 SQLAlchemy==2.0.43
 psycopg2-binary==2.9.10
 fastapi==0.115.12
+ddgs==9.9.1
+markdownify==1.2.0
+pypdf==6.2.0
+beautifulsoup4==4.14.2
+playwright==1.56.0

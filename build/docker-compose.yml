@@ -18,6 +18,7 @@ services:
     volumes:
       - ../agents/src:/src
       - ../data:/data
+      - ../notebooks:/notebooks
     ports:
       - 8889:8888
       - 5001:5000
