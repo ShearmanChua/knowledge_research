@@ -6,6 +6,8 @@ from autogen_core import CancellationToken
 
 import re
 
+from tools.tool_tracing_utils import trace_span_info
+
 def clean_text(text: str) -> str:
     if not text:
         return text
@@ -86,6 +88,7 @@ class WebSearchTool:
 
     # ------------------- TOOLS -------------------
 
+    @trace_span_info
     async def search(self, query: str, page: int = 1):
         """Perform Web Search using DuckDuckGo."""
         self.current_query = query
@@ -98,6 +101,7 @@ class WebSearchTool:
             "results": self.current_results
         }
 
+    @trace_span_info
     async def select_webpage(self, result_id: int):
         """Fetch selected webpage content."""
         if not self.current_results:
@@ -114,6 +118,7 @@ class WebSearchTool:
             "content": content
         }
 
+    @trace_span_info
     async def next_page(self):
         """Load the next page of DuckDuckGo search results."""
         if not self.current_query:
@@ -134,3 +139,4 @@ class WebSearchTool:
             self.select_tool,
             self.next_page_tool
         ]
+    

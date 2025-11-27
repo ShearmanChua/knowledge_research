@@ -43,11 +43,3 @@ rag_cfg = {
     "embedding_api_endpoint": "http://localhost:8000/embeddings",
     "embedding_model": "bge-m3",
 }
-
-web_search_cfg = {
-    "description": (
-        "Call this tool to search the web for the information "
-        "required to complete the task. "
-        "Provide the search query as a parameter for this tool."
-    )
-}

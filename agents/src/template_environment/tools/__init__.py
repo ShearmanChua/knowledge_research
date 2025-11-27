@@ -1,3 +1,3 @@
-from agents.src.template_environment.tools.communication_tools import *
-from tools.rag_tool import *
-from tools.web_search import *
+from tools.communication_tools import *
+from tools.web_tools import *
+from tools.arxiv_tools import *

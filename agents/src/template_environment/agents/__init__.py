@@ -1,2 +1,2 @@
-from agents.src.template_environment.agents.base_thinking_agent import BaseThinkingAgent
+from agents.base_thinking_agent import BaseThinkingAgent
 from agents.user_agent import UserAgent

@@ -3,7 +3,7 @@ import uuid
 
 import utils.tracer as tracer
 
-from agents.src.template_environment.agents.base_thinking_agent import BaseThinkingAgent
+from agents.base_thinking_agent import BaseThinkingAgent
 from agents.user_agent import UserAgent
 from autogen_core import SingleThreadedAgentRuntime, TopicId
 from autogen_core.models import UserMessage
@@ -39,8 +39,8 @@ async def main():
             type=user["name"],
             factory=lambda user_cfgs=user: UserAgent(
                 description=user_cfgs["description"],
-                user_topic_type=user_cfgs["user_topic_type"],
-                agent_topic_type=user_cfgs["agent_topic_type"],
+                user_topic=user_cfgs["user_topic_type"],
+                agent_topic=user_cfgs["agent_topic_type"],
             ),
         )
     for agent in agents_config.autonomous_agents_cfgs:

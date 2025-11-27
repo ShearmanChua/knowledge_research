@@ -1,4 +1,5 @@
 import json
+import copy
 from typing import List
 
 from autogen_core import (
@@ -87,7 +88,7 @@ class BaseThinkingAgent(RoutedAgent):
         # designate message soure topic type
         self._sender_agent_topic = message.sender_topic_type
 
-        if not isinstance(self._communication_tools, dict):
+        if not isinstance(self._communication_tools, dict) and self._communication_tools:
             self._communication_tools = await set_communication_tools(
                 self._agent_topics, self._communication_tools, self._runtime
             )
@@ -105,10 +106,13 @@ class BaseThinkingAgent(RoutedAgent):
             )
 
         self._chat_history.extend(message.context)
-        think_context = await self._reflection.think(self._chat_history,
+        
+        think_context = await self._reflection.think(copy.deepcopy(self._chat_history),
                                                      self._model_client,
                                                      self.id.type)
+        
         self._chat_history.extend(think_context)
+
         available_tools = (
             [tool.schema for tool in self._tools.values()]
             + [tool.schema for tool in self._communication_tools]
@@ -162,7 +166,7 @@ class BaseThinkingAgent(RoutedAgent):
         # update topic type of agent to reply to
         self._sender_agent_topic = message.sender_topic_type
 
-        if not isinstance(self._communication_tools, dict):
+        if not isinstance(self._communication_tools, dict) and self._communication_tools:
             self._communication_tools = await set_communication_tools(
                 self._agent_topics, self._communication_tools, self._runtime
             )
@@ -304,7 +308,7 @@ class BaseThinkingAgent(RoutedAgent):
 
         # add tool results to chat history
         self._chat_history.append(
-            FunctionExecutionResultMessage(content=tool_result)
+            FunctionExecutionResultMessage(content=tool_results)
         )
 
         available_tools = (

@@ -52,12 +52,14 @@ class BaseReflection:
     @trace_span_info
     async def create_thought(self, thought: str):
         self._thought = thought
+        return 'Thought created'
     @trace_span_info
     async def get_thought(self):
         return self._thought
     @trace_span_info
     async def update_thought(self, thought: str):
         self._thought = thought
+        return 'Thought updated'
     async def think(self, context: List[LLMMessage],
                     model_client: ChatCompletionClient,
                     agent_type: str):
@@ -143,7 +145,7 @@ class BaseReflection:
 
         else:
             result = await model_client.create(
-                messages=self._system_message + context,
+                messages=[self._system_message] + context,
                 tools=[
                     self._tools["create_thought"].schema
                 ],
@@ -183,7 +185,6 @@ class BaseReflection:
                                 is_error=True,
                             )
                         )
-
             think_context = []
             think_context.append(
                 AssistantMessage(content=result.content, source=agent_type)
