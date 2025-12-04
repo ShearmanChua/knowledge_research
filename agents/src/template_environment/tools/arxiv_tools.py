@@ -275,6 +275,9 @@ class ArxivSearchTool:
         self.prev_win_tool = FunctionTool(self.prev_window, name="prev_window", description=self.prev_window.__doc__)
         self.go_win_tool = FunctionTool(self.get_window, name="read_window", description=self.get_window.__doc__)
         self.next_page_tool = FunctionTool(self.next_page, name="next_arxiv_page", description=self.next_page.__doc__)
+        self.abstract_tool = FunctionTool(self.get_abstract, name="get_abstract", description=self.get_abstract.__doc__)
+        self.keyword_tool = FunctionTool(self.keyword_search, name="search_keyword", description=self.keyword_search.__doc__)
+
 
     # ------------------- SEARCH -------------------
 
@@ -282,6 +285,14 @@ class ArxivSearchTool:
     async def search(self, query: str, page: int = 1):
         """
         Search ArXiv and store results.
+
+        **Useful for research questions that requires academic knowledge.**
+
+        WARNING: Search results get replaced when a new query is performed. Therefore,
+        you should ONLY perform one query at a time and open the required results/papers before
+        moving onto the next query.
+
+        e.g. workflow: search -> get_abstract -> next_page -> open_paper -> search
 
         Parameters
         ----------
@@ -303,6 +314,37 @@ class ArxivSearchTool:
             "query": query,
             "page": page,
             "results": self.current_results
+        }
+    
+    @trace_span_info
+    async def get_abstract(self, result_id: int):
+        """
+        Return the abstract (summary) of a paper from the current search results.
+        NOTE: Try to use this function instead of `open_paper` unless more information
+        about the paper (e.g. implementation, code) is needed.
+
+        Parameters
+        ----------
+        result_id : int
+            Index of the paper in the current search results.
+
+        Returns
+        -------
+        dict
+            Dictionary containing title, authors, and abstract (summary).
+        """
+        if not self.current_results:
+            return {"error": "No active search results."}
+
+        if result_id < 0 or result_id >= len(self.current_results):
+            return {"error": "Invalid result_id."}
+
+        paper = self.current_results[result_id]
+
+        return {
+            "title": paper["title"],
+            "authors": paper["authors"],
+            "abstract": paper["summary"]
         }
 
     # ------------------- OPEN PAPER + LOAD PDF -------------------
@@ -338,12 +380,102 @@ class ArxivSearchTool:
             "total_windows": num_windows,
             "first_window": await self.reader.get_window(0)
         }
+    
+    @trace_span_info
+    async def keyword_search(self, keyword: str, window_words: int = 256):
+        """
+        Search for a single keyword in the currently opened paper and return 
+        context snippets around each match.
+
+        **Only single-word searches are allowed. Multi-word phrases are not supported.**
+
+        Parameters
+        ----------
+        keyword : str
+            A single keyword to search for (case-insensitive).
+            If multiple words or a phrase is provided, an error is returned.
+        window_words : int, optional
+            Number of words before and after the keyword to include in each context snippet.
+
+        Returns
+        -------
+        dict
+            {
+                "keyword": keyword,
+                "total_matches": N,
+                "matches": [
+                    {
+                        "index": match_number,
+                        "context": "...window_words before [keyword] window_words after..."
+                    },
+                    ...
+                ]
+            }
+            If invalid input is provided (multi-word), returns an error message.
+        """
+
+        # -----------------------------
+        # Validate input: single word only
+        # -----------------------------
+        if not keyword or len(keyword.strip().split()) != 1:
+            return {"error": "Only single-word searches are allowed."}
+
+        if not self.reader.windows:
+            return {"error": "No PDF loaded. Use open_paper first."}
+
+        keyword_lower = keyword.lower()
+
+        # Reconstruct full paper text
+        full_text = " ".join(self.reader.windows)
+        words = full_text.split()
+
+        matches = []
+
+        # -----------------------------
+        # Word-level search
+        # -----------------------------
+        for i, w in enumerate(words):
+            # clean punctuation
+            w_clean = re.sub(r"[^\w-]", "", w).lower()
+            if w_clean == keyword_lower:
+                start = max(0, i - window_words)
+                end = min(len(words), i + window_words + 1)
+                snippet_words = words[start:end]
+                snippet = " ".join(snippet_words)
+
+                # highlight the keyword
+                highlighted = re.sub(
+                    rf"(?i)\b({re.escape(keyword_lower)})\b",
+                    r"**\1**",
+                    snippet
+                )
+
+                matches.append({
+                    "index": len(matches),
+                    "context": highlighted
+                })
+
+        if not matches:
+            return {
+                "keyword": keyword,
+                "matches": [],
+                "message": "No matches found."
+            }
+
+        return {
+            "keyword": keyword,
+            "total_matches": len(matches),
+            "matches": matches
+        }
+
+
 
     # ------------------- WINDOW CONTROLS -------------------
     @trace_span_info
     async def next_window(self):
         """
         Move forward one window in the opened paper.
+        Try to use 'keyword_search' instead, unless you are not getting the required results.
 
         Returns
         -------
@@ -377,7 +509,7 @@ class ArxivSearchTool:
         str or dict
             Window text or error dictionary.
         """
-        return self.reader.get_window(index)
+        return await self.reader.get_window(index)
 
     # ------------------- SEARCH PAGE NAVIGATION -------------------
     @trace_span_info
@@ -406,6 +538,8 @@ class ArxivSearchTool:
         return [
             self.search_tool,
             self.select_tool,
+            # self.abstract_tool,
+            self.keyword_tool,
             self.next_win_tool,
             self.prev_win_tool,
             self.go_win_tool,

@@ -19,4 +19,6 @@ RUN pip install -r requirements.txt --no-cache-dir
 
 RUN playwright install
 
+RUN playwright install-deps
+
 WORKDIR /src

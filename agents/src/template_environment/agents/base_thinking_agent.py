@@ -60,6 +60,7 @@ class BaseThinkingAgent(RoutedAgent):
         self._chat_history: List[LLMMessage] = []
         self._sender_agent_topic = ""
         self._reflection = BaseReflection(system_message=system_message)
+        self._num_tool_calls = 0
 
     @message_handler
     async def handle_broadcast_message(
@@ -220,9 +221,11 @@ class BaseThinkingAgent(RoutedAgent):
         self._chat_history.append(
             AssistantMessage(content=llm_result.content, source=self.id.type)
         )
+        
         tool_results = []
         # Process each function call.
         for call in llm_result.content:
+            self._num_tool_calls += 1
             arguments = json.loads(call.arguments)
 
             if call.name in self._tools:
@@ -311,6 +314,14 @@ class BaseThinkingAgent(RoutedAgent):
             FunctionExecutionResultMessage(content=tool_results)
         )
 
+        if self._num_tool_calls > 3:
+            think_context = await self._reflection.think(copy.deepcopy(self._chat_history),
+                                                        self._model_client,
+                                                        self.id.type)
+            
+            self._chat_history.extend(think_context)
+            self._num_tool_calls = 0
+
         available_tools = (
             [tool.schema for tool in self._tools.values()]
             + [tool.schema for tool in self._communication_tools]
@@ -338,10 +349,10 @@ class BaseThinkingAgent(RoutedAgent):
     async def handle_response(
         self, llm_result: CreateResult, ctx: MessageContext
     ) -> None:
-        self._chat_history.append(AssistantMessage(content=llm_result.content))
+        self._chat_history.append(AssistantMessage(content=llm_result.content, source=self.id.type))
         await self.publish_message(
             AgentResponse(
-                reply_to_topic_type=self.id.type,
+                sender_topic_type=self.id.type,
                 context=[
                     AssistantMessage(
                         content=llm_result.content, source=self.id.type

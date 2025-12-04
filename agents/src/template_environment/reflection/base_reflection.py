@@ -25,11 +25,12 @@ class BaseReflection:
         self._system_message = SystemMessage(content=system_message)
         self._thought = ""
         self._thinking_prompt = (
-            "Based on task context above, use the tools available to "
-            "you to think and generate a step-by-step thought process "
+            "Based on context above, use the tools available to "
+            "you to think and follow a step-by-step thought process "
             "that will guide you to the solution to the task. "
             "The thought should be in the form of a markdown list "
             "with a checkbox at the start of each step. "
+            "Update your thought process as the task progresses."
         )
         tools = [
             FunctionTool(
@@ -69,7 +70,7 @@ class BaseReflection:
             else:
                 context[-1].content.append(self._thinking_prompt)
         else:
-            context.append(UserMessage(content=self._thinking_prompt))
+            context.append(UserMessage(content=self._thinking_prompt, source=agent_type))
 
         think_context = await self.run_reflection(context, model_client, agent_type)
 
@@ -85,7 +86,7 @@ class BaseReflection:
                 self._tools["update_thought"].schema
             ]
             result = await model_client.create(
-                messages=self._system_message + context,
+                messages=[self._system_message] + context,
                 tools=available_tools,
                 tool_choice="required"
             )

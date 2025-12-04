@@ -22,7 +22,15 @@ def trace_span_info(func):
 
         # Log parameters
         try:
-            param_values = dict(signature(func).bind(*args, **kwargs).arguments)
+            bound = signature(func).bind(*args, **kwargs)
+            args_dict = bound.arguments
+
+            # Remove "self" if present
+            if "self" in args_dict:
+                args_without_self = {k: v for k, v in args_dict.items() if k != "self"}
+            else:
+                args_without_self = dict(args_dict)
+            param_values = dict(args_without_self)
             current_span.set_attribute("input.value", json.dumps(param_values, indent=4))
         except Exception as e:
             current_span.set_attribute("input.value", f"Parameter logging failed: {e}")

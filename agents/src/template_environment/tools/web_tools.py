@@ -3,6 +3,7 @@ from ddgs import DDGS
 import requests
 from markdownify import markdownify as html_to_md
 from autogen_core import CancellationToken
+from playwright.async_api import async_playwright
 
 import re
 
@@ -23,7 +24,7 @@ class DuckDuckGoAPI:
     def __init__(self):
         self.ddg = DDGS()
 
-    def search(self, query: str, page: int = 1, max_results: int = 10):
+    async def search(self, query: str, page: int = 1, max_results: int = 10):
         """
         DuckDuckGo search
         """
@@ -52,25 +53,70 @@ class DuckDuckGoAPI:
 
         return normalized
 
-    def fetch(self, url: str):
+    async def fetch(self, url: str):
         """
-        Fetch a webpage and return Markdown.
+        Fetch a webpage using Playwright Async API.
+        Handles HTML, PDFs, Cloudflare, and JS-heavy sites.
         """
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
+        # ---------- PDF detection (URL hint) ----------
+        if url.lower().endswith(".pdf"):
+            try:
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+                return "PDF content detected — binary file skipped."
+            except Exception as e:
+                return f"Error fetching PDF: {e}"
 
-            html = response.text
+        # ---------- HTML fetch via Playwright ----------
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                    ]
+                )
+
+                context = await browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/123.0.0.0 Safari/537.36"
+                    )
+                )
+
+                page = await context.new_page()
+
+                try:
+                    # robust JS loading
+                    await page.goto(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=15000
+                    )
+                except Exception:
+                    # retry once with looser settings
+                    try:
+                        await page.goto(url, timeout=15000)
+                    except Exception as e:
+                        await browser.close()
+                        return f"Error fetching page: {e}"
+
+                # allow JS to finish rendering
+                await page.wait_for_timeout(2000)
+
+                html = await page.content()
+
+                await browser.close()
 
             # Convert HTML → Markdown
             markdown = html_to_md(html)
-
             cleaned = clean_text(markdown)
             return cleaned[:20000]
 
         except Exception as e:
             return f"Error fetching page: {e}"
-
 
 # ----------------------------------------------------------------------
 # Autogen-Compatible Search Tool Wrapper
@@ -90,10 +136,17 @@ class WebSearchTool:
 
     @trace_span_info
     async def search(self, query: str, page: int = 1):
-        """Perform Web Search using DuckDuckGo."""
+        """
+        Perform Web Search using DuckDuckGo.
+
+        WARNING: Search results get replaced when a new query is performed. Therefore, ONLY perform one query at a time
+        and open the required webpages/results before moving onto the next query. 
+
+        e.g. workflow: search -> select_webpage -> next_page -> select_webpage -> search
+        """
         self.current_query = query
         self.current_page = page
-        self.current_results = self.api.search(query, page)
+        self.current_results = await self.api.search(query, page)
 
         return {
             "query": query,
@@ -111,7 +164,7 @@ class WebSearchTool:
             return {"error": "Invalid result_id"}
 
         url = self.current_results[result_id]["url"]
-        content = self.api.fetch(url)
+        content = await self.api.fetch(url)
 
         return {
             "url": url,
@@ -125,7 +178,7 @@ class WebSearchTool:
             return {"error": "No active query"}
 
         self.current_page += 1
-        self.current_results = self.api.search(self.current_query, self.current_page)
+        self.current_results = await self.api.search(self.current_query, self.current_page)
 
         return {
             "query": self.current_query,
