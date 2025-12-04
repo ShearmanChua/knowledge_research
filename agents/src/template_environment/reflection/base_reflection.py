@@ -79,7 +79,7 @@ class BaseReflection:
     async def run_reflection(self, context: List[LLMMessage],
                              model_client: ChatCompletionClient,
                              agent_type: str):
-        
+        get_thought_called = False
         if self._thought:
             available_tools = [
                 self._tools["get_thought"].schema,
