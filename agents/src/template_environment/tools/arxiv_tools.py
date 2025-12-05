@@ -284,9 +284,9 @@ class ArxivSearchTool:
     @trace_span_info
     async def search(self, query: str, page: int = 1):
         """
-        Search ArXiv and store results.
+        Search ArXiv for academic papers and store results.
 
-        **Useful for research questions that requires academic knowledge.**
+        **Useful for research questions that requires academic knowledge (e.g., machine learning).**
 
         WARNING: Search results get replaced when a new query is performed. Therefore,
         you should ONLY perform one query at a time and open the required results/papers before

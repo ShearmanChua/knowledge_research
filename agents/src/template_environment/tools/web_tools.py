@@ -33,11 +33,12 @@ class DuckDuckGoAPI:
         results = list(
             self.ddg.text(
                 query=query,
-                region="wt-wt",
+                region="us-en",
                 safesearch="moderate",
                 timelimit="y",
                 max_results=max_results,
                 page=page,
+                backend="google",
             )
         )
 
@@ -106,9 +107,23 @@ class DuckDuckGoAPI:
                 # allow JS to finish rendering
                 await page.wait_for_timeout(2000)
 
-                html = await page.content()
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass  # Not all sites reach networkidle
 
-                await browser.close()
+                # Retry extracting HTML a few times if the page is still navigating
+                html = None
+                for _ in range(3):
+                    try:
+                        html = await page.content()
+                        break
+                    except Exception:
+                        await page.wait_for_timeout(500)
+
+                if html is None:
+                    await browser.close()
+                    return "Error: page kept navigating; unable to extract content."
 
             # Convert HTML → Markdown
             markdown = html_to_md(html)
@@ -137,7 +152,7 @@ class WebSearchTool:
     @trace_span_info
     async def search(self, query: str, page: int = 1):
         """
-        Perform Web Search using DuckDuckGo.
+        Perform Web Search using DuckDuckGo (each query overwrites existing results).
 
         WARNING: Search results get replaced when a new query is performed. Therefore, ONLY perform one query at a time
         and open the required webpages/results before moving onto the next query. 
@@ -155,15 +170,11 @@ class WebSearchTool:
         }
 
     @trace_span_info
-    async def select_webpage(self, result_id: int):
-        """Fetch selected webpage content."""
-        if not self.current_results:
-            return {"error": "No active search results"}
+    async def select_webpage(self, url: str):
+        """Fetch selected webpage content by URL."""
+        if not url:
+            return {"error": "No URL provided"}
 
-        if result_id < 0 or result_id >= len(self.current_results):
-            return {"error": "Invalid result_id"}
-
-        url = self.current_results[result_id]["url"]
         content = await self.api.fetch(url)
 
         return {

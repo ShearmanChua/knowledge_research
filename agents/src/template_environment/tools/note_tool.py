@@ -22,11 +22,11 @@ class NoteTool:
             FunctionTool(self.create_note_section, name="create_note_section", description=self.create_note_section.__doc__),
             FunctionTool(self.create_note_subsection, name="create_note_subsection", description=self.create_note_subsection.__doc__),
             FunctionTool(self.write_notes, name="write_notes", description=self.write_notes.__doc__),
+            FunctionTool(self.read_note_section, name="read_note_section", description=self.read_note_section.__doc__),
+            FunctionTool(self.read_all_notes, name="read_all_notes", description=self.read_all_notes.__doc__),
             FunctionTool(self.edit_note_section, name="edit_note_section", description=self.edit_note_section.__doc__),
             FunctionTool(self.list_note_sections, name="list_note_sections", description=self.list_note_sections.__doc__),
             FunctionTool(self.delete_note_section, name="delete_note_section", description=self.delete_note_section.__doc__),
-            FunctionTool(self.read_note_section, name="read_note_section", description=self.read_note_section.__doc__),
-            FunctionTool(self.read_all_notes, name="read_all_notes", description=self.read_all_notes.__doc__),
         ]
 
     # -----------------------------
@@ -83,7 +83,7 @@ class NoteTool:
     async def write_notes(self, section_name: str, text: str, subsection_name: str = ""):
         """
         Write notes based on current research progress so that it can be easily referenced later.
-        Notes should include key findings from the research, along with their sources (url etc).
+        Notes should include key findings from the research, and MUST include their sources (e.g. cited from https://mwi.westpoint.edu/planes/).
 
         Notes:
         - At least one section must exist before writing.

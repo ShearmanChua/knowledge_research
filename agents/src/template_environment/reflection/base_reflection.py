@@ -27,10 +27,12 @@ class BaseReflection:
         self._thinking_prompt = (
             "Based on context above, use the tools available to "
             "you to think and follow a step-by-step thought process "
-            "that will guide you to the solution to the task. "
-            "The thought should be in the form of a markdown list "
-            "with a checkbox at the start of each step. "
-            "Update your thought process as the task progresses."
+            "that will guide you to the solution to the task.\n\n"
+            "The thought should be an action plan in the form of a markdown list "
+            "with a checkbox at the start of each step.\n\n"
+            "Each step of the plan should be a breakdown of the original task "
+            "into smaller subtasks to be answered one at a time.\n\n"
+            "Update your thought process as the task progresses. Refine your plan if you have to."
         )
         tools = [
             FunctionTool(
