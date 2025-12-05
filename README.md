@@ -40,11 +40,15 @@ You can view the research run on phoenix by going to `localhost:6006` on your br
 
 ## Roadmap
 [] Context/Memory Management
+
 [] Better social network analysis research with Knowledge Graphs
+
 [] Better Reasoning??
 
 ## Resources
 DEEP RESEARCH AGENTS:
 **A SYSTEMATIC EXAMINATION AND ROADMAP** - https://arxiv.org/abs/2506.18096
+
 **RESEARCHRUBRICS: A Benchmark of Prompts and Rubrics For Evaluating Deep Research Agents** - https://www.arxiv.org/abs/2511.07685
+
 **DeepDive: Advancing Deep Search Agents with Knowledge Graphs and Multi-Turn RL** - https://arxiv.org/abs/2509.10446v1
